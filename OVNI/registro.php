@@ -11,6 +11,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html>
 <head>
     <title>Registro - OVNI</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
@@ -27,5 +28,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <a href="index.php">Volver</a>
         </div>
     </div>
+    <script src="js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

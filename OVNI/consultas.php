@@ -12,6 +12,7 @@ $user = $_SESSION['usuario'];
 <html>
 <head>
     <title>Mi Oficina Virtual</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
