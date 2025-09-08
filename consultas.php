@@ -7,23 +7,25 @@ if (!isset($_SESSION['usuario'])) {
     exit();
 }
 $user = $_SESSION['usuario'];
+
+// Lógica para el avatar por defecto
+$avatar = empty($user['avatar_usuario']) ? 'novatar.png' : $user['avatar_usuario'];
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Mi Oficina Virtual</title>
-    <link rel="stylesheet" href="css/bootstrap.min.css">
-    <link rel="stylesheet" href="css/estilos.css">
-</head>
-<body>
-    <?php include "header.php"; ?>
-    <div class="main-content">
-        <h2>Mi Oficina Virtual</h2>
-        <img src="img/<?php echo $user['avatar_usuario']; ?>" class="avatar" alt="Avatar"><br>
-        <strong>Email:</strong> <?php echo $user['email_usuario']; ?><br>
-        <div style="text-align:center; margin-top:20px;">
-            <a href="logout.php">Cerrar sesión</a>
+
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="card shadow-lg p-4" style="max-width: 400px; width: 100%;">
+        <div class="text-center mb-3">
+            <img src="img/<?php echo $avatar; ?>" class="avatar mb-2" alt="Avatar" style="width: 90px;">
+            <h2 class="mb-2" style="font-weight: bold; color: #0d6efd;">Mi Oficina Virtual</h2>
+            <p class="text-muted mb-3" style="font-size: 1rem;">¡Bienvenido, <?php echo htmlspecialchars($user['email_usuario']); ?>!</p>
+        </div>
+        <div class="mb-3 text-center">
+            <strong>Email:</strong> <?php echo htmlspecialchars($user['email_usuario']); ?>
+        </div>
+        <div class="text-center mt-3">
+            <a href="logout.php" class="btn btn-outline-danger w-100">Cerrar sesión</a>
         </div>
     </div>
-</body>
-</html>
+</div>
+
+<?php include "footer.php"; ?>

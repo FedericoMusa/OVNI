@@ -1,6 +1,6 @@
 <?php
 function conectar() {
-    $conn = new mysqli("localhost", "root", "", "ovni");
+    $conn = new mysqli("localhost", "root", "", "OVNI");
     if ($conn->connect_error) {
         die("Conexión fallida: " . $conn->connect_error);
     }
