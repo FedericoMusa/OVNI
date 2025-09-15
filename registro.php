@@ -1,36 +1,50 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
+session_start();                    // <-- necesario para flash
 include "funciones.php";
 
 $mensaje = "";
+
+// PROCESO POST
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    // --- Validaciones del lado servidor ---
     $email  = isset($_POST['email'])  ? trim($_POST['email'])  : '';
     $clave  = isset($_POST['clave'])  ? (string)$_POST['clave']  : '';
     $clave2 = isset($_POST['clave2']) ? (string)$_POST['clave2'] : '';
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $mensaje = "Formato de email inválido.";
+        $_SESSION['flash_msg'] = "Formato de email inválido.";
     } elseif (strlen($clave) < 8) {
-        $mensaje = "La contraseña debe tener al menos 8 caracteres.";
+        $_SESSION['flash_msg'] = "La contraseña debe tener al menos 8 caracteres.";
     } elseif ($clave !== $clave2) {
-        $mensaje = "Las contraseñas no coinciden.";
+        $_SESSION['flash_msg'] = "Las contraseñas no coinciden.";
     } else {
-        // Si pasa las validaciones, registramos
-        $mensaje = registrar_usuario($email, $clave);
+        $_SESSION['flash_msg'] = registrar_usuario($email, $clave);
     }
+
+    // PRG: redirige para limpiar POST y evitar reenvío
+    header("Location: " . strtok($_SERVER['REQUEST_URI'], '?'));
+    exit;
+}
+
+// MENSAJE FLASH EN GET
+if (isset($_SESSION['flash_msg'])) {
+    $mensaje = $_SESSION['flash_msg'];
+    unset($_SESSION['flash_msg']);
 }
 ?>
 <!DOCTYPE html>
 <html>
 <head>
     <title>Oficina Virtual - Inicio</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Opcional: evitar cache agresivo del formulario -->
+    <meta http-equiv="Cache-Control" content="no-store">
+
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/estilos.css">
     <link rel="stylesheet" href="assets/css/animate.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta charset="UTF-8">
 </head>
 <body>
 
@@ -42,9 +56,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <p class="text-muted mb-3" style="font-size: 1rem;">¡Crea tu cuenta para acceder a la oficina virtual!</p>
         </div>
 
-        <!-- Autocomplete desactivado para evitar que “pegue” valores -->
-        <form method="POST" action="" autocomplete="off" autocapitalize="none" spellcheck="false" novalidate>
-            <!-- Honeypot para desalentar autocompletar de algunos navegadores -->
+        <!-- SUGERENCIA: dejar sin 'novalidate' para que el navegador ayude -->
+        <form method="POST" action="" autocomplete="off" autocapitalize="none" spellcheck="false">
+            <!-- Honeypot para frenar autocompletar terco -->
             <input type="text" name="fakeusernameremembered" style="display:none">
             <input type="password" name="fakepasswordremembered" style="display:none">
 
@@ -103,7 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 <?php include "footer.php"; ?>
 
-<!-- Validación cliente: longitud y coincidencia -->
+<!-- Validación cliente adicional: longitud y coincidencia -->
 <script>
   (function () {
     const form  = document.querySelector('form');
@@ -111,23 +125,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     const pass2 = document.getElementById('clave2');
 
     function validar() {
-      // longitud mínima
-      if (pass1.value.length < 8) {
-        pass1.setCustomValidity('La contraseña debe tener al menos 8 caracteres.');
-      } else {
-        pass1.setCustomValidity('');
-      }
-      // coincidencia
-      if (pass1.value !== pass2.value) {
-        pass2.setCustomValidity('Las contraseñas no coinciden.');
-      } else {
-        pass2.setCustomValidity('');
-      }
+      pass1.setCustomValidity(pass1.value.length < 8 ? 'La contraseña debe tener al menos 8 caracteres.' : '');
+      pass2.setCustomValidity(pass1.value !== pass2.value ? 'Las contraseñas no coinciden.' : '');
     }
 
     pass1.addEventListener('input', validar);
     pass2.addEventListener('input', validar);
-
     form.addEventListener('submit', (e) => {
       validar();
       if (!form.checkValidity()) {
