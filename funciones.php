@@ -27,6 +27,22 @@ function conectar(): mysqli {
     $conn->set_charset("utf8mb4");
     return $conn;
 }
+//actualiza el nombre de la oficina
+function actualizar_nombre_oficina(int $id_usuario, string $nuevo_nombre): bool {
+    $nuevo_nombre = trim($nuevo_nombre);
+    if ($nuevo_nombre === '' || mb_strlen($nuevo_nombre) > 100) {
+        return false;
+    }
+
+    $conn = conectar();
+    $sql = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("si", $nuevo_nombre, $id_usuario);
+    $ok = $stmt->execute();
+    $stmt->close();
+    $conn->close();
+    return $ok;
+}
 
 //////////////////////////
 // Helpers generales
@@ -294,26 +310,40 @@ function actualizar_password(int $id_usuario, string $clave_actual, string $clav
         return "Error al actualizar contraseña: " . $e->getMessage();
     }
 }
-
-/** Obtiene un usuario por ID (sin devolver el hash). */
-function obtener_usuario_por_id(int $id_usuario) {
+/**Actualiza el nombre del usuario. */
+function actualizar_nombre_usuario(int $id_usuario, string $nuevo_nombre): string {
+    $nuevo_nombre = trim($nuevo_nombre);
+    if (strlen($nuevo_nombre) < 2) {
+        return "El nombre debe tener al menos 2 caracteres.";
+    }
     try {
         $conn = conectar();
-        $stmt = $conn->prepare(
-            "SELECT id_usuario, email_usuario, avatar_usuario, estado_usuario, id_oficina, creado_en
-             FROM usuarios WHERE id_usuario=? LIMIT 1"
-        );
-        $stmt->bind_param("i", $id_usuario);
-        $stmt->execute();
-        $res  = $stmt->get_result();
-        $user = $res->fetch_assoc();
-
-        $stmt->close();
+        $upd = $conn->prepare("UPDATE usuarios SET nombre_usuario=? WHERE id_usuario=?");
+        $upd->bind_param("si", $nuevo_nombre, $id_usuario);
+        $upd->execute();
+        $ok = $upd->affected_rows > 0;
+        $upd->close();
         $conn->close();
-        return $user ?: null;
+
+        return $ok ? "Nombre actualizado." : "No se pudo actualizar el nombre o no hubo cambios.";
+
     } catch (mysqli_sql_exception $e) {
-        return null;
+        return "Error al actualizar nombre: " . $e->getMessage();
     }
+}
+/** Obtiene un usuario por ID (sin devolver el hash). */
+function obtener_usuario_por_id(int $id_usuario): ?array {
+    $conn = conectar();
+    $sql = "SELECT id_usuario, email_usuario, avatar_usuario, estado_usuario, nombre_oficina
+            FROM usuarios WHERE id_usuario = ? LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $id_usuario);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $user = $res->fetch_assoc() ?: null;
+    $stmt->close();
+    $conn->close();
+    return $user;
 }
 
 ///////////////////////////////////////////////////////////
@@ -398,5 +428,41 @@ function crear_proyecto(int $id_cliente, string $nombre, string $estado='planifi
     } catch (mysqli_sql_exception $e) {
         if (isset($conn)) { $conn->rollback(); $conn->close(); }
         return "Error al crear proyecto: ".$e->getMessage();
+    }
+}
+
+// --- Asegurate de que arriba en este archivo exista conectar() ---
+
+if (!function_exists('actualizar_nombre_oficina')) {
+    function actualizar_nombre_oficina(int $id_usuario, string $nuevo_nombre): bool {
+        $nuevo_nombre = trim($nuevo_nombre);
+        if ($nuevo_nombre === '' || mb_strlen($nuevo_nombre) > 100) {
+            return false;
+        }
+
+        $conn = conectar();
+        $sql = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("si", $nuevo_nombre, $id_usuario);
+        $ok = $stmt->execute();
+        $stmt->close();
+        $conn->close();
+        return $ok;
+    }
+}
+
+if (!function_exists('obtener_usuario_por_id')) {
+    function obtener_usuario_por_id(int $id_usuario): ?array {
+        $conn = conectar();
+        $sql = "SELECT id_usuario, email_usuario, avatar_usuario, estado_usuario, nombre_oficina
+                FROM usuarios WHERE id_usuario = ? LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $id_usuario);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $user = $res->fetch_assoc() ?: null;
+        $stmt->close();
+        $conn->close();
+        return $user;
     }
 }
