@@ -1,55 +1,30 @@
 <?php
-/**
- * funciones.php
- * Utilidades de conexión y funciones base para esquema multi-oficina (ovni_dev).
- *
- * Requiere las tablas:
- * - oficinas(id_oficina PK, nombre, creado_en)
- * - usuarios(id_usuario PK, email_usuario UNIQUE, clave_usuario, avatar_usuario, estado_usuario, id_oficina FK NULLABLE, creado_en)
- * - clientes(id_cliente PK, ..., id_oficina FK)
- * - proyectos(id_proyecto PK, ..., id_cliente FK, id_oficina FK, creado_por FK usuarios)
- * - documentos(...) (opcional aquí)
- */
-
 //////////////////////////
 // Conexión a la BD
 //////////////////////////
 function conectar(): mysqli {
-    // Lanza excepciones ante errores (mejor manejo)
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
     $host = "localhost";
     $user = "root";
     $pass = "";
-    $db   = "ovni_dev"; // usar minúsculas para evitar problemas en Linux
+    $db   = "ovni_dev"; // cambia si tu base usa otro nombre
 
     $conn = new mysqli($host, $user, $pass, $db);
     $conn->set_charset("utf8mb4");
     return $conn;
 }
-//actualiza el nombre de la oficina
-function actualizar_nombre_oficina(int $id_usuario, string $nuevo_nombre): bool {
-    $nuevo_nombre = trim($nuevo_nombre);
-    if ($nuevo_nombre === '' || mb_strlen($nuevo_nombre) > 100) {
-        return false;
-    }
-
-    $conn = conectar();
-    $sql = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("si", $nuevo_nombre, $id_usuario);
-    $ok = $stmt->execute();
-    $stmt->close();
-    $conn->close();
-    return $ok;
-}
 
 //////////////////////////
 // Helpers generales
 //////////////////////////
-function normalizar_email(string $email): string {
-    return trim(mb_strtolower($email));
+if (!function_exists('h')) {
+    function h(?string $s): string {
+        return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    }
 }
+
+function normalizar_email(string $email): string { return trim(mb_strtolower($email)); }
 
 function validar_credenciales(string $email, string $clave): ?string {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -62,19 +37,107 @@ function validar_credenciales(string $email, string $clave): ?string {
 }
 
 //////////////////////////
-// Helpers de sesión / tenant
-// (Asegúrate de hacer session_start() en tus controladores)
+// Helpers de sesión (usa $_SESSION['usuario'])
 //////////////////////////
-function oficina_id_actual(): ?int {
-    return $_SESSION['user']['id_oficina'] ?? null; // null => super_admin
-}
-
 function usuario_id_actual(): ?int {
-    return $_SESSION['user']['id_usuario'] ?? null;
+    return isset($_SESSION['usuario']['id_usuario']) ? (int)$_SESSION['usuario']['id_usuario'] : null;
+}
+function oficina_id_actual(): ?int {
+    return isset($_SESSION['usuario']['id_oficina']) ? (int)$_SESSION['usuario']['id_oficina'] : null;
+}
+function es_super_admin(): bool {
+    return array_key_exists('id_oficina', $_SESSION['usuario'] ?? []) && is_null($_SESSION['usuario']['id_oficina']);
 }
 
-function es_super_admin(): bool {
-    return is_null(oficina_id_actual());
+//////////////////////////
+// Login de usuario
+//////////////////////////
+function login_usuario(string $email, string $clave): ?array {
+    $conn = conectar();
+    $sql  = "SELECT * FROM usuarios WHERE email_usuario = ? AND estado_usuario = 'activo' LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $emailNorm = normalizar_email($email);
+    $stmt->bind_param("s", $emailNorm);
+    $stmt->execute();
+    $res  = $stmt->get_result();
+    $user = $res->fetch_assoc() ?: null;
+    $stmt->close();
+    $conn->close();
+
+    if (!$user) return null;
+
+    // Detecta si el campo es un hash válido (PHP 7/8)
+    $hash = (string)$user['clave_usuario'];
+    $info = password_get_info($hash);
+    $ok = false;
+    if (!empty($info['algo'])) {
+        $ok = password_verify($clave, $hash);
+    } else {
+        // Fallback NO recomendado: solo si migrás desde texto plano
+        $ok = hash_equals($hash, $clave);
+    }
+
+    return $ok ? $user : null;
+}
+
+//////////////////////////
+// Obtener usuario por ID (sin hash)
+//////////////////////////
+function obtener_usuario_por_id(int $id_usuario): ?array {
+    $conn = conectar();
+    $sql  = "SELECT id_usuario, email_usuario, avatar_usuario, estado_usuario, nombre_oficina, id_oficina
+             FROM usuarios WHERE id_usuario = ? LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $id_usuario);
+    $stmt->execute();
+    $res  = $stmt->get_result();
+    $user = $res->fetch_assoc() ?: null;
+    $stmt->close();
+    $conn->close();
+    return $user;
+}
+
+//////////////////////////
+// Actualizar nombre de la oficina
+//////////////////////////
+function actualizar_nombre_oficina(int $id_usuario, string $nuevo_nombre): bool {
+    $nuevo_nombre = trim($nuevo_nombre);
+    if ($nuevo_nombre === '' || mb_strlen($nuevo_nombre) > 100) {
+        return false;
+    }
+
+    $conn = conectar();
+    $sql  = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("si", $nuevo_nombre, $id_usuario);
+    $ok   = $stmt->execute();
+    $stmt->close();
+    $conn->close();
+
+    return $ok;
+}
+
+//////////////////////////
+// Actualizar avatar de la oficina/usuario
+//////////////////////////
+function actualizar_avatar_oficina(int $id_usuario, string $nombre_archivo): bool {
+    $nombre_archivo = basename($nombre_archivo); // evita traversal
+    if ($nombre_archivo === '') return false;
+
+    $conn = conectar();
+    $sql  = "UPDATE usuarios SET avatar_usuario = ? WHERE id_usuario = ? LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("si", $nombre_archivo, $id_usuario);
+    $ok   = $stmt->execute();
+    $stmt->close();
+    $conn->close();
+
+    return $ok;
+}
+
+// Alias por compatibilidad (si en alguna parte llamás cambiar_avatar)
+function cambiar_avatar(int $id_usuario, string $avatar): bool {
+    return actualizar_avatar_oficina($id_usuario, $avatar);
 }
 
 //////////////////////////
@@ -88,11 +151,8 @@ function registrar_usuario(string $email, string $clave): string {
         $conn->begin_transaction();
 
         $email = normalizar_email($email);
-
         if ($msg = validar_credenciales($email, $clave)) {
-            $conn->rollback();
-            $conn->close();
-            return $msg;
+            $conn->rollback(); $conn->close(); return $msg;
         }
 
         // Unicidad de email (además del UNIQUE en BD)
@@ -100,14 +160,12 @@ function registrar_usuario(string $email, string $clave): string {
         $stmt->bind_param("s", $email);
         $stmt->execute();
         if ($stmt->get_result()->fetch_row()) {
-            $stmt->close();
-            $conn->rollback();
-            $conn->close();
+            $stmt->close(); $conn->rollback(); $conn->close();
             return "El email ya está registrado";
         }
         $stmt->close();
 
-        // 1) Crear oficina
+        // 1) Crear oficina (requiere tabla oficinas(nombre))
         $nombre_oficina = "Oficina de " . $email;
         $stmt1 = $conn->prepare("INSERT INTO oficinas (nombre) VALUES (?)");
         $stmt1->bind_param("s", $nombre_oficina);
@@ -118,26 +176,20 @@ function registrar_usuario(string $email, string $clave): string {
         // 2) Crear usuario asociado
         $hash = password_hash($clave, PASSWORD_DEFAULT);
         $stmt2 = $conn->prepare(
-            "INSERT INTO usuarios (email_usuario, clave_usuario, avatar_usuario, estado_usuario, id_oficina)
-             VALUES (?, ?, 'noavatar.png', 'activo', ?)"
+            "INSERT INTO usuarios (email_usuario, clave_usuario, avatar_usuario, estado_usuario, id_oficina, nombre_oficina)
+             VALUES (?, ?, 'noavatar.png', 'activo', ?, ?)"
         );
-        $stmt2->bind_param("ssi", $email, $hash, $id_oficina);
+        $stmt2->bind_param("ssis", $email, $hash, $id_oficina, $nombre_oficina);
         $stmt2->execute();
         $id_usuario = (int)$conn->insert_id;
         $stmt2->close();
 
-        $conn->commit();
-        $conn->close();
+        $conn->commit(); $conn->close();
         return "Oficina #$id_oficina creada y usuario #$id_usuario registrado correctamente";
 
     } catch (mysqli_sql_exception $e) {
-        if ($conn) {
-            $conn->rollback();
-            $conn->close();
-        }
-        if ($e->getCode() === 1062) {
-            return "El email ya está registrado";
-        }
+        if ($conn) { $conn->rollback(); $conn->close(); }
+        if ($e->getCode() === 1062) return "El email ya está registrado";
         return "Error al registrar: " . $e->getMessage();
     }
 }
@@ -149,13 +201,11 @@ function registrar_super_admin(string $email, string $clave): string {
     try {
         $conn = conectar();
         $email = normalizar_email($email);
-        if ($msg = validar_credenciales($email, $clave)) {
-            $conn->close(); return $msg;
-        }
+        if ($msg = validar_credenciales($email, $clave)) { $conn->close(); return $msg; }
         $hash = password_hash($clave, PASSWORD_DEFAULT);
         $stmt = $conn->prepare(
-            "INSERT INTO usuarios (email_usuario, clave_usuario, avatar_usuario, estado_usuario, id_oficina)
-             VALUES (?, ?, 'noavatar.png', 'activo', NULL)"
+            "INSERT INTO usuarios (email_usuario, clave_usuario, avatar_usuario, estado_usuario, id_oficina, nombre_oficina)
+             VALUES (?, ?, 'noavatar.png', 'activo', NULL, 'Mi Oficina')"
         );
         $stmt->bind_param("ss", $email, $hash);
         $stmt->execute();
@@ -168,66 +218,6 @@ function registrar_super_admin(string $email, string $clave): string {
 }
 
 //////////////////////////
-// Login (devuelve datos del usuario SIN el hash)
-//////////////////////////
-function login_usuario(string $email, string $clave) {
-    try {
-        $conn  = conectar();
-        $email = normalizar_email($email);
-
-        $sql = "SELECT id_usuario, email_usuario, clave_usuario, avatar_usuario, estado_usuario, id_oficina
-                FROM usuarios
-                WHERE email_usuario = ? LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-
-        $res  = $stmt->get_result();
-        $user = $res->fetch_assoc();
-
-        $stmt->close();
-        $conn->close();
-
-        if (!$user) return false;                       // no existe
-        if ($user['estado_usuario'] !== 'activo') return false; // no activo
-        if (!password_verify($clave, $user['clave_usuario'])) return false; // clave mal
-
-        // Rehash transparente si cambió el algoritmo por defecto
-        if (password_needs_rehash($user['clave_usuario'], PASSWORD_DEFAULT)) {
-            try {
-                $nuevoHash = password_hash($clave, PASSWORD_DEFAULT);
-                $conn = conectar();
-                $upd  = $conn->prepare("UPDATE usuarios SET clave_usuario=? WHERE id_usuario=?");
-                $upd->bind_param("si", $nuevoHash, $user['id_usuario']);
-                $upd->execute();
-                $upd->close();
-                $conn->close();
-            } catch (mysqli_sql_exception $e) { /* no romper login */ }
-        }
-
-        unset($user['clave_usuario']); // nunca exponer el hash
-        return $user; // array asociativo con id_oficina incluido
-
-    } catch (mysqli_sql_exception $e) {
-        return false; // en login devolvemos false ante error
-    }
-}
-
-// IMPORTANTE: NO seteamos $_SESSION aquí.
-// Hacelo en tu controlador después de login exitoso:
-//   session_start();
-//   $user = login_usuario($email, $clave);
-//   if ($user) {
-//       $_SESSION['user'] = [
-//           'id_usuario' => (int)$user['id_usuario'],
-//           'email'      => $user['email_usuario'],
-//           'id_oficina' => isset($user['id_oficina']) ? (int)$user['id_oficina'] : null,
-//           'estado'     => $user['estado_usuario'],
-//           'avatar'     => $user['avatar_usuario'],
-//       ];
-//   }
-
-//////////////////////////
 // Utilidades de usuarios
 //////////////////////////
 
@@ -236,16 +226,11 @@ function usuario_existe(string $email): bool {
     try {
         $conn  = conectar();
         $email = normalizar_email($email);
-
         $stmt = $conn->prepare("SELECT 1 FROM usuarios WHERE email_usuario=? LIMIT 1");
         $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $stmt->store_result();
-
+        $stmt->execute(); $stmt->store_result();
         $existe = $stmt->num_rows > 0;
-
-        $stmt->close();
-        $conn->close();
+        $stmt->close(); $conn->close();
         return $existe;
     } catch (mysqli_sql_exception $e) {
         return false;
@@ -255,19 +240,14 @@ function usuario_existe(string $email): bool {
 /** Cambia estado del usuario: 'activo' | 'inactivo' | 'bloqueado' */
 function cambiar_estado_usuario(int $id_usuario, string $nuevo_estado): string {
     $permitidos = ['activo','inactivo','bloqueado'];
-    if (!in_array($nuevo_estado, $permitidos, true)) {
-        return "Estado inválido.";
-    }
+    if (!in_array($nuevo_estado, $permitidos, true)) return "Estado inválido.";
     try {
         $conn = conectar();
         $stmt = $conn->prepare("UPDATE usuarios SET estado_usuario=? WHERE id_usuario=?");
         $stmt->bind_param("si", $nuevo_estado, $id_usuario);
         $stmt->execute();
         $filas = $stmt->affected_rows;
-
-        $stmt->close();
-        $conn->close();
-
+        $stmt->close(); $conn->close();
         return $filas > 0 ? "Estado actualizado." : "No se encontró el usuario.";
     } catch (mysqli_sql_exception $e) {
         return "Error al actualizar estado: " . $e->getMessage();
@@ -276,9 +256,7 @@ function cambiar_estado_usuario(int $id_usuario, string $nuevo_estado): string {
 
 /** Actualiza la contraseña (requiere clave actual correcta). */
 function actualizar_password(int $id_usuario, string $clave_actual, string $clave_nueva): string {
-    if (strlen($clave_nueva) < 8) {
-        return "La nueva contraseña debe tener al menos 8 caracteres.";
-    }
+    if (strlen($clave_nueva) < 8) return "La nueva contraseña debe tener al menos 8 caracteres.";
     try {
         $conn = conectar();
 
@@ -301,61 +279,38 @@ function actualizar_password(int $id_usuario, string $clave_actual, string $clav
         $upd->bind_param("si", $nuevoHash, $id_usuario);
         $upd->execute();
         $ok = $upd->affected_rows > 0;
-        $upd->close();
-        $conn->close();
+        $upd->close(); $conn->close();
 
         return $ok ? "Contraseña actualizada." : "No se pudo actualizar la contraseña.";
-
     } catch (mysqli_sql_exception $e) {
         return "Error al actualizar contraseña: " . $e->getMessage();
     }
 }
-/**Actualiza el nombre del usuario. */
+
+/** Actualiza el nombre del usuario (persona, no la oficina). */
 function actualizar_nombre_usuario(int $id_usuario, string $nuevo_nombre): string {
     $nuevo_nombre = trim($nuevo_nombre);
-    if (strlen($nuevo_nombre) < 2) {
-        return "El nombre debe tener al menos 2 caracteres.";
-    }
+    if (mb_strlen($nuevo_nombre) < 2) return "El nombre debe tener al menos 2 caracteres.";
     try {
         $conn = conectar();
         $upd = $conn->prepare("UPDATE usuarios SET nombre_usuario=? WHERE id_usuario=?");
         $upd->bind_param("si", $nuevo_nombre, $id_usuario);
         $upd->execute();
         $ok = $upd->affected_rows > 0;
-        $upd->close();
-        $conn->close();
-
+        $upd->close(); $conn->close();
         return $ok ? "Nombre actualizado." : "No se pudo actualizar el nombre o no hubo cambios.";
-
     } catch (mysqli_sql_exception $e) {
         return "Error al actualizar nombre: " . $e->getMessage();
     }
 }
-/** Obtiene un usuario por ID (sin devolver el hash). */
-function obtener_usuario_por_id(int $id_usuario): ?array {
-    $conn = conectar();
-    $sql = "SELECT id_usuario, email_usuario, avatar_usuario, estado_usuario, nombre_oficina
-            FROM usuarios WHERE id_usuario = ? LIMIT 1";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $id_usuario);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $user = $res->fetch_assoc() ?: null;
-    $stmt->close();
-    $conn->close();
-    return $user;
-}
 
 ///////////////////////////////////////////////////////////
-// EJEMPLOS OPCIONALES (CRUD scopeado a la oficina actual)
+// CRUD scopeado a la oficina actual (opcionales)
 ///////////////////////////////////////////////////////////
 
-/** Crea un cliente para la oficina del usuario logueado */
 function crear_cliente(string $nombre, ?string $email, ?string $telefono, ?string $direccion): string {
     $id_oficina = oficina_id_actual();
-    if (!$id_oficina) {
-        return "No hay oficina en sesión (o es super admin).";
-    }
+    if (!$id_oficina) return "No hay oficina en sesión (o es super admin).";
     try {
         $conn = conectar();
         $sql = "INSERT INTO clientes (nombre, email, telefono, direccion, id_oficina)
@@ -371,11 +326,9 @@ function crear_cliente(string $nombre, ?string $email, ?string $telefono, ?strin
     }
 }
 
-/** Lista clientes de mi oficina */
 function listar_clientes(): array {
     $id_oficina = oficina_id_actual();
-    if (!$id_oficina) return []; // o manejar super_admin aparte
-
+    if (!$id_oficina) return [];
     try {
         $conn = conectar();
         $stmt = $conn->prepare("SELECT id_cliente, nombre, email, telefono, direccion, creado_en
@@ -393,7 +346,6 @@ function listar_clientes(): array {
     }
 }
 
-/** Crea un proyecto validando pertenencia del cliente a mi oficina */
 function crear_proyecto(int $id_cliente, string $nombre, string $estado='planificado',
                         ?string $fecha_inicio=null, ?string $fecha_fin_estimada=null): string {
     $id_oficina = oficina_id_actual();
@@ -428,41 +380,5 @@ function crear_proyecto(int $id_cliente, string $nombre, string $estado='planifi
     } catch (mysqli_sql_exception $e) {
         if (isset($conn)) { $conn->rollback(); $conn->close(); }
         return "Error al crear proyecto: ".$e->getMessage();
-    }
-}
-
-// --- Asegurate de que arriba en este archivo exista conectar() ---
-
-if (!function_exists('actualizar_nombre_oficina')) {
-    function actualizar_nombre_oficina(int $id_usuario, string $nuevo_nombre): bool {
-        $nuevo_nombre = trim($nuevo_nombre);
-        if ($nuevo_nombre === '' || mb_strlen($nuevo_nombre) > 100) {
-            return false;
-        }
-
-        $conn = conectar();
-        $sql = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("si", $nuevo_nombre, $id_usuario);
-        $ok = $stmt->execute();
-        $stmt->close();
-        $conn->close();
-        return $ok;
-    }
-}
-
-if (!function_exists('obtener_usuario_por_id')) {
-    function obtener_usuario_por_id(int $id_usuario): ?array {
-        $conn = conectar();
-        $sql = "SELECT id_usuario, email_usuario, avatar_usuario, estado_usuario, nombre_oficina
-                FROM usuarios WHERE id_usuario = ? LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("i", $id_usuario);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $user = $res->fetch_assoc() ?: null;
-        $stmt->close();
-        $conn->close();
-        return $user;
     }
 }
