@@ -6,8 +6,27 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+define('INACTIVITY_LIMIT', 300); // 5 minutos
+
+if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > INACTIVITY_LIMIT)) {
+    session_unset();
+    session_destroy();
+    header("Location: login.php?expired=1");
+    exit();
+}
+
+$_SESSION['LAST_ACTIVITY'] = time();
+
 require_once __DIR__ . '/funciones.php';
-// Parche temporal: 
+
+/* ------- Helpers opcionales (solo si no existen) ------- */
+if (!function_exists('h')) {
+    function h(?string $s): string {
+        return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+
+// Parche temporal: actualizar avatar si no existe en funciones.php
 if (!function_exists('actualizar_avatar_oficina')) {
     function actualizar_avatar_oficina(int $id_usuario, string $nombre_archivo): bool {
         $nombre_archivo = basename($nombre_archivo);
@@ -23,25 +42,41 @@ if (!function_exists('actualizar_avatar_oficina')) {
         return $ok;
     }
 }
-//PARCHE TEMPORAL 
-if (!function_exists("actualizar_nombre_oficina")) {
-    function actualizar_nombre_oficina(int $id_usuario, string $nuevo_nombre): bool {
-        $nuevo_nombre = trim($nuevo_nombre);
-        if ($nuevo_nombre === '' || mb_strlen($nuevo_nombre) > 100) {
-            return false;
-        }
+
+// Parche temporal: actualizar nombre si no existe en funciones.php
+if (!function_exists('actualizar_nombre_oficina')) {
+    function actualizar_nombre_oficina(int $id_usuario, string $nuevo): bool {
+        $nuevo = trim($nuevo);
+        if ($nuevo === '' || mb_strlen($nuevo) > 100) return false;
 
         $conn = conectar();
         $sql  = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("si", $nuevo_nombre, $id_usuario);
+        $stmt->bind_param("si", $nuevo, $id_usuario);
         $ok   = $stmt->execute();
         $stmt->close();
         $conn->close();
-
         return $ok;
     }
 }
+
+// Parche temporal: obtener usuario si no existe en funciones.php
+if (!function_exists('obtener_usuario_por_id')) {
+    function obtener_usuario_por_id(int $id): ?array {
+        $conn = conectar();
+        $sql  = "SELECT id_usuario, email_usuario, nombre_oficina, avatar_usuario FROM usuarios WHERE id_usuario = ? LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res->fetch_assoc() ?: null;
+        $stmt->close();
+        $conn->close();
+        return $row;
+    }
+}
+
+/* -------- FIN de parches: OJO quitaste el if(!function_exists("")) roto -------- */
 
 if (!isset($_SESSION['usuario'])) {
     header("Location: login.php");
@@ -56,14 +91,10 @@ if (empty($_SESSION['csrf'])) {
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
 }
 
-/* ---------------- Helpers ---------------- */
-function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-
 /* ---------------- MANEJO DEL FORMULARIO ---------------- */
 
 /* Cambiar nombre */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambiar_nombre') {
-    // opcional: validar CSRF
     if (!hash_equals($_SESSION['csrf'], $_POST['csrf'] ?? '')) {
         $flash = '<div class="alert alert-danger">Sesión expirada. Recargá la página.</div>';
     } else {
@@ -95,9 +126,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
         if (!in_array($ext, $permitidas, true)) {
             $flash = '<div class="alert alert-danger">Formato no permitido. Usa JPG, PNG, GIF o WEBP.</div>';
         } else {
+            // Asegurar carpeta destino
+            $dir = __DIR__ . '/assets/img';
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+
             // Nombre único por usuario
             $nuevoNombre = 'avatar_' . (int)$user['id_usuario'] . '.' . $ext;
-            $destino     = __DIR__ . '/assets/img/' . $nuevoNombre;
+            $destino     = $dir . '/' . $nuevoNombre;
 
             if (move_uploaded_file($tmp, $destino)) {
                 if (actualizar_avatar_oficina((int)$user['id_usuario'], $nuevoNombre)) {
