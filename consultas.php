@@ -6,32 +6,32 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-define('INACTIVITY_LIMIT', 300); // 5 minutos
+/* Base URL (con barra final), ej: /OVNI/ */
+$BASE = rtrim(str_replace('\\','/', dirname($_SERVER['SCRIPT_NAME'])), '/') . '/';
 
+define('INACTIVITY_LIMIT', 300); // 5 minutos
 if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > INACTIVITY_LIMIT)) {
     session_unset();
     session_destroy();
-    header("Location: login.php?expired=1");
+    header("Location: {$BASE}login.php?expired=1");
     exit();
 }
-
 $_SESSION['LAST_ACTIVITY'] = time();
 
 require_once __DIR__ . '/funciones.php';
 
-/* ------- Helpers opcionales (solo si no existen) ------- */
+/* ------- Helpers opcionales ------- */
 if (!function_exists('h')) {
     function h(?string $s): string {
         return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
 
-// Parche temporal: actualizar avatar si no existe en funciones.php
+/* ------- Parches si faltan en funciones.php ------- */
 if (!function_exists('actualizar_avatar_oficina')) {
     function actualizar_avatar_oficina(int $id_usuario, string $nombre_archivo): bool {
         $nombre_archivo = basename($nombre_archivo);
         if ($nombre_archivo === '') return false;
-
         $conn = conectar();
         $sql  = "UPDATE usuarios SET avatar_usuario = ? WHERE id_usuario = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
@@ -42,13 +42,10 @@ if (!function_exists('actualizar_avatar_oficina')) {
         return $ok;
     }
 }
-
-// Parche temporal: actualizar nombre si no existe en funciones.php
 if (!function_exists('actualizar_nombre_oficina')) {
     function actualizar_nombre_oficina(int $id_usuario, string $nuevo): bool {
         $nuevo = trim($nuevo);
         if ($nuevo === '' || mb_strlen($nuevo) > 100) return false;
-
         $conn = conectar();
         $sql  = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
@@ -59,12 +56,11 @@ if (!function_exists('actualizar_nombre_oficina')) {
         return $ok;
     }
 }
-
-// Parche temporal: obtener usuario si no existe en funciones.php
 if (!function_exists('obtener_usuario_por_id')) {
     function obtener_usuario_por_id(int $id): ?array {
         $conn = conectar();
-        $sql  = "SELECT id_usuario, email_usuario, nombre_oficina, avatar_usuario FROM usuarios WHERE id_usuario = ? LIMIT 1";
+        $sql  = "SELECT id_usuario, email_usuario, nombre_oficina, avatar_usuario
+                 FROM usuarios WHERE id_usuario = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $id);
         $stmt->execute();
@@ -75,11 +71,10 @@ if (!function_exists('obtener_usuario_por_id')) {
         return $row;
     }
 }
-
-/* -------- FIN de parches: OJO quitaste el if(!function_exists("")) roto -------- */
+/* -------- FIN parches -------- */
 
 if (!isset($_SESSION['usuario'])) {
-    header("Location: login.php");
+    header("Location: {$BASE}login.php");
     exit;
 }
 
@@ -103,7 +98,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
             if ($u = obtener_usuario_por_id((int)$user['id_usuario'])) {
                 $_SESSION['usuario'] = $user = $u;
             }
-            $flash = '<div class="alert alert-success">Nombre actualizado.</div>';
+            /* PRG → Dashboard */
+            $_SESSION['flash_success'] = 'Nombre actualizado.';
+            header("Location: {$BASE}dashboard.php?updated=name");
+            exit;
         } else {
             $flash = '<div class="alert alert-warning">El nombre debe tener entre 1 y 100 caracteres.</div>';
         }
@@ -120,42 +118,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
         $tmp  = $_FILES['avatar']['tmp_name'];
         $name = $_FILES['avatar']['name'];
 
-        // Validaciones básicas
         $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
         $permitidas = ['jpg','jpeg','png','gif','webp'];
         if (!in_array($ext, $permitidas, true)) {
-            $flash = '<div class="alert alert-danger">Formato no permitido. Usa JPG, PNG, GIF o WEBP.</div>';
+            $flash = '<div class="alert alert-danger">Formato no permitido. Usá JPG, JPEG, PNG, GIF o WEBP.</div>';
         } else {
-            // Asegurar carpeta destino
             $dir = __DIR__ . '/assets/img';
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0775, true);
-            }
+            if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
 
-            // Nombre único por usuario
             $nuevoNombre = 'avatar_' . (int)$user['id_usuario'] . '.' . $ext;
             $destino     = $dir . '/' . $nuevoNombre;
 
-            if (move_uploaded_file($tmp, $destino)) {
+            if (!move_uploaded_file($tmp, $destino)) {
+                $flash = '<div class="alert alert-danger">No se pudo mover el archivo al destino.</div>';
+            } else {
                 if (actualizar_avatar_oficina((int)$user['id_usuario'], $nuevoNombre)) {
                     if ($u = obtener_usuario_por_id((int)$user['id_usuario'])) {
                         $_SESSION['usuario'] = $user = $u;
                     }
-                    $flash = '<div class="alert alert-success">Avatar actualizado.</div>';
+                    /* PRG → Dashboard */
+                    $_SESSION['flash_success'] = 'Avatar actualizado.';
+                    header("Location: {$BASE}dashboard.php?updated=avatar");
+                    exit;
                 } else {
                     $flash = '<div class="alert alert-danger">No se pudo guardar el avatar en la base de datos.</div>';
                 }
-            } else {
-                $flash = '<div class="alert alert-danger">No se pudo mover el archivo al destino.</div>';
             }
         }
     }
 }
 
 /* ---------------- FIN LÓGICA PHP ---------------- */
-
-// Base para rutas relativas (p.ej. /OVNI/)
-$BASE = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -183,7 +176,7 @@ $BASE = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
   <div class="card mb-3">
     <div class="card-body">
       <h2 class="h5 mb-3">Cambiar nombre de la Oficina</h2>
-      <form method="post" class="row g-2">
+      <form method="post" class="row g-2" action="">
         <input type="hidden" name="accion" value="cambiar_nombre">
         <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>">
         <div class="col-12 col-md-9">
@@ -200,7 +193,7 @@ $BASE = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
   <div class="card">
     <div class="card-body">
       <h2 class="h5 mb-3">Cambiar avatar</h2>
-      <form method="post" enctype="multipart/form-data" class="row g-2">
+      <form method="post" enctype="multipart/form-data" class="row g-2" action="">
         <input type="hidden" name="accion" value="cambiar_avatar">
         <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>">
         <div class="col-12 col-md-9">
@@ -213,8 +206,14 @@ $BASE = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
       </form>
     </div>
   </div>
+
+  <!-- Salir al panel (útil durante pruebas) -->
+  <div class="mt-4 d-grid">
+    <a class="btn btn-success" href="<?= h($BASE) ?>dashboard.php">Ir al panel</a>
+  </div>
 </div>
 
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
