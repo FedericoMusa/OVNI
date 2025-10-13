@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
             }
             /* PRG → Dashboard */
             $_SESSION['flash_success'] = 'Nombre actualizado.';
-            header("Location: {$BASE}dashboard.php?updated=name");
+            header("Location: {$BASE}panel/dashboard/dashboard.php?updated=name");
             exit;
         } else {
             $flash = '<div class="alert alert-warning">El nombre debe tener entre 1 y 100 caracteres.</div>';
@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
                     }
                     /* PRG → Dashboard */
                     $_SESSION['flash_success'] = 'Avatar actualizado.';
-                    header("Location: {$BASE}dashboard.php?updated=avatar");
+                    header("Location: {$BASE}panel/dashboard/dashboard.php?updated=avatar");
                     exit;
                 } else {
                     $flash = '<div class="alert alert-danger">No se pudo guardar el avatar en la base de datos.</div>';
@@ -207,9 +207,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
     </div>
   </div>
 
-  <!-- Salir al panel (útil durante pruebas) -->
+  <!-- Sal  l (útil durante pruebas) -->
   <div class="mt-4 d-grid">
-    <a class="btn btn-success" href="<?= h($BASE) ?>dashboard.php">Ir al panel</a>
+    <a class="btn btn-success" href="<?= h($BASE) ?>panel/dashboard/dashboard.php">Ir al panel</a>
   </div>
 </div>
 
