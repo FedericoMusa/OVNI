@@ -2,6 +2,7 @@
 //////////////////////////
 // Conexión a la BD
 //////////////////////////
+const LEGAL_VERSION = '1.0';
 function conectar(): mysqli {
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -14,6 +15,31 @@ function conectar(): mysqli {
     $conn->set_charset("utf8mb4");
     return $conn;
 }
+
+// 🟩 Helpers para versionado legal y aceptación de términos
+function asegurar_version_legal(mysqli $conn, string $version): void {
+    $sql = "INSERT IGNORE INTO terms_versions (version, title, published_at)
+            VALUES (?, 'Descargo y Seguridad OVNI', NOW())";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $version);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function guardar_aceptacion_terminos(mysqli $conn, int $userId, string $version): void {
+    $ip        = $_SERVER['REMOTE_ADDR']     ?? null;
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+    $sql = "INSERT INTO user_terms_acceptances (user_id, version, accepted_at, ip, user_agent)
+            VALUES (?, ?, NOW(), ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("isss", $userId, $version, $ip, $userAgent);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// 🟩 Luego de estos helpers, viene tu función registrar_usuario()
+// Implementación completa más abajo en este archivo.
 
 //////////////////////////
 // Helpers generales
@@ -140,6 +166,8 @@ function cambiar_avatar(int $id_usuario, string $avatar): bool {
     return actualizar_avatar_oficina($id_usuario, $avatar);
 }
 
+error_log("OVNI funciones.php cargado desde: " . __FILE__);
+
 //////////////////////////
 // Alta de usuario (crea OFICINA + USUARIO en una transacción)
 //////////////////////////
@@ -183,6 +211,14 @@ function registrar_usuario(string $email, string $clave): string {
         $stmt2->execute();
         $id_usuario = (int)$conn->insert_id;
         $stmt2->close();
+        asegurar_version_legal($conn, LEGAL_VERSION);
+        guardar_aceptacion_terminos($conn, $id_usuario, LEGAL_VERSION); 
+        error_log("=== INICIO registro legal ===");
+        asegurar_version_legal($conn, LEGAL_VERSION);
+        error_log("✔ Version legal insertada");
+        guardar_aceptacion_terminos($conn, $id_usuario, LEGAL_VERSION);
+        error_log("✔ Aceptacion insertada");
+        error_log("✔ Commit...");
 
         $conn->commit(); $conn->close();
         return "Oficina #$id_oficina creada y usuario #$id_usuario registrado correctamente";
