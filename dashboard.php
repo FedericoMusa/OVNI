@@ -146,7 +146,7 @@ $title         = 'Dashboard — ' . $nombreOficina;
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Agenda</h5>
           <p class="card-text flex-grow-1">Revisá y organizá tu agenda.</p>
-          <a class="btn btn-outline-secondary mt-auto" href="<?= $APP_ROOT ?>/panel/agenda.php">Entrar</a>
+          <a class="btn btn-outline-secondary mt-auto" href="<?= $APP_ROOT ?>/panel/dashboard/agenda.php">Entrar</a>
         </div>
       </div>
     </div>
