@@ -1,38 +1,26 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
 session_start();
-require_once "funciones.php";
+require_once __DIR__ . '/funciones.php';
 
 $mensaje = "";
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $user = login_usuario($_POST['email'] ?? '', $_POST['clave'] ?? '');
-    if ($user) {
-        $_SESSION['usuario'] = $user;
-        header("Location: consultas.php");
-        exit;
-    } else {
-        $mensaje = "Usuario o contraseña incorrecto";
-    }
+  $email = $_POST['email'] ?? '';
+  $clave = $_POST['clave'] ?? '';
+  $user  = login_usuario($email, $clave);
+  if ($user) {
+    $_SESSION['usuario'] = $user;
+    header("Location: dashboard.php");
+    exit;
+  } else {
+    $mensaje = "Usuario o contraseña incorrecto";
+  }
 }
 
-// calcula la base del proyecto (ej: /OVNI/)
-$BASE = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
+$pageTitle = 'Iniciar sesión';
+require_once __DIR__ . '/partials/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Oficina Virtual - Iniciar sesión</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <base href="<?= htmlspecialchars($BASE) ?>">
-  <link rel="stylesheet" href="assets/css/bootstrap.min.css">
-  <link rel="stylesheet" href="assets/css/estilos.css">
-  <link rel="stylesheet" href="assets/css/animate.css">
-</head>
-<body>
-
 <div class="container d-flex justify-content-center align-items-center" style="min-height: 80vh;">
   <div class="card shadow-lg p-4" style="max-width: 400px; width: 100%;">
     <div class="text-center mb-3">
@@ -45,15 +33,17 @@ $BASE = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
       <div class="mb-3">
         <input type="email" name="email" class="form-control" placeholder="Correo electrónico" required>
       </div>
-      <div class="mb-3">
-        <input type="password" name="clave" class="form-control" placeholder="Contraseña" required>
+      <div class="mb-3 position-relative">
+        <input type="password" name="clave" id="login_clave" class="form-control" placeholder="Contraseña" required>
+        <button type="button" class="btn btn-outline-secondary btn-sm position-absolute top-50 end-0 translate-middle-y me-2"
+                onclick="togglePassword('login_clave', this)">👁️</button>
       </div>
       <button type="submit" class="btn btn-primary w-100">Entrar</button>
     </form>
 
     <?php if ($mensaje): ?>
       <div class="alert alert-danger mt-3 py-2 text-center" style="font-size:.95em;">
-        <?= $mensaje ?>
+        <?= htmlspecialchars($mensaje) ?>
       </div>
     <?php endif; ?>
 
@@ -63,8 +53,12 @@ $BASE = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/';
   </div>
 </div>
 
-<?php include "footer.php"; ?>
-
-<script src="assets/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<script>
+function togglePassword(idCampo, boton) {
+  const campo = document.getElementById(idCampo);
+  const visible = campo.type === "text";
+  campo.type = visible ? "password" : "text";
+  boton.textContent = visible ? "👁️" : "🙈";
+}
+</script>
+<?php require_once __DIR__ . '/partials/footer.php'; ?>

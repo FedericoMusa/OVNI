@@ -225,3 +225,50 @@ a:hover {
         margin: 10px 0;
     }
 }
+    
+/* ==== OVNI – Dashboard look ==== */
+:root{
+  --ovni-primary:#1e66ff;
+  --ovni-bg1:#eef5ff;
+  --ovni-bg2:#f7f9ff;
+  --ovni-ring:rgba(0,0,0,.03);
+}
+
+/* Fondo suave del dashboard */
+.body-dashboard{
+  background: linear-gradient(180deg,var(--ovni-bg1) 0%, var(--ovni-bg2) 100%);
+}
+
+/* Cards redondeadas y con sombra leve */
+.card{
+  border-radius:16px !important;
+  box-shadow:0 10px 25px rgba(0,0,0,.06);
+}
+
+/* Botones con acento OVNI */
+.btn-primary{
+  background:var(--ovni-primary);
+  border-color:var(--ovni-primary);
+}
+.btn-outline-primary{
+  color:var(--ovni-primary);
+  border-color:var(--ovni-primary);
+}
+.btn-outline-primary:hover{
+  background:var(--ovni-primary);
+  border-color:var(--ovni-primary);
+}
+
+/* Header del dashboard */
+.ovni-header .avatar{
+  width:160px; height:160px; object-fit:cover; border-radius:50%;
+  border:4px solid #fff;
+  box-shadow:0 0 0 6px var(--ovni-ring), 0 10px 25px rgba(0,0,0,.12);
+}
+.ovni-header h1{
+  letter-spacing:.2px;
+}
+.ovni-header{
+  text-align:center;
+  margin-bottom:30px;
+}

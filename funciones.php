@@ -219,7 +219,7 @@ function registrar_usuario(string $email, string $clave): string {
         guardar_aceptacion_terminos($conn, $id_usuario, LEGAL_VERSION);
         error_log("✔ Aceptacion insertada");
         error_log("✔ Commit...");
-
+        
         $conn->commit(); $conn->close();
         return "Oficina #$id_oficina creada y usuario #$id_usuario registrado correctamente";
 

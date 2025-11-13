@@ -132,6 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
             if (!move_uploaded_file($tmp, $destino)) {
                 $flash = '<div class="alert alert-danger">No se pudo mover el archivo al destino.</div>';
             } else {
+                // Opcional: normalizar permisos
+                @chmod($destino, 0644);
+
                 if (actualizar_avatar_oficina((int)$user['id_usuario'], $nuevoNombre)) {
                     if ($u = obtener_usuario_por_id((int)$user['id_usuario'])) {
                         $_SESSION['usuario'] = $user = $u;
@@ -158,6 +161,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <base href="<?= h($BASE) ?>">
   <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+  <style>
+    /* estilos pequeños locales */
+    .avatar-sm { width:80px; height:80px; object-fit:cover; border-radius:50%; }
+  </style>
 </head>
 <body>
 
@@ -165,10 +172,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
   <?php if ($flash) { echo $flash; } ?>
 
   <div class="d-flex align-items-center gap-3 mb-3">
-    <img src="assets/img/<?= h($user['avatar_usuario'] ?? 'noavatar.png') ?>" alt="Avatar" style="width:80px; height:80px; object-fit:cover; border-radius:50%;">
+    <img src="assets/img/<?= h($user['avatar_usuario'] ?? 'noavatar.png') ?>" alt="Avatar" class="avatar-sm">
     <div>
       <h1 class="h3 mb-1">Bienvenido a <?= h($user['nombre_oficina'] ?? 'Mi Oficina') ?></h1>
       <div class="text-muted">Usuario: <?= h($user['email_usuario'] ?? '') ?></div>
+    </div>
+    <div class="ms-auto">
+      <a class="btn btn-outline-dark" href="<?= h($BASE) ?>logout.php" aria-label="Cerrar sesión">Cerrar sesión</a>
     </div>
   </div>
 
@@ -180,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
         <input type="hidden" name="accion" value="cambiar_nombre">
         <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>">
         <div class="col-12 col-md-9">
-          <input type="text" name="nombre_oficina" value="<?= h($user['nombre_oficina'] ?? '') ?>" maxlength="100" required class="form-control">
+          <input type="text" name="nombre_oficina" value="<?= h($user['nombre_oficina'] ?? '') ?>" maxlength="100" required class="form-control" aria-label="Nombre de la oficina">
         </div>
         <div class="col-12 col-md-3 d-grid">
           <button class="btn btn-primary">Guardar</button>
@@ -197,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
         <input type="hidden" name="accion" value="cambiar_avatar">
         <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>">
         <div class="col-12 col-md-9">
-          <input type="file" name="avatar" accept="image/*" required class="form-control">
+          <input type="file" name="avatar" accept="image/*" required class="form-control" aria-label="Seleccionar avatar">
           <div class="form-text">Formatos permitidos: jpg, jpeg, png, gif, webp.</div>
         </div>
         <div class="col-12 col-md-3 d-grid">
@@ -207,13 +217,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambi
     </div>
   </div>
 
-  <!-- Sal  l (útil durante pruebas) -->
-  <div class="mt-4 d-grid">
+  <!-- Salida (útil durante pruebas) -->
+  <div class="mt-4 d-flex gap-2">
     <a class="btn btn-success" href="<?= h($BASE) ?>panel/dashboard/dashboard.php">Ir al panel</a>
+    <a class="btn btn-outline-dark ms-auto" href="<?= h($BASE) ?>logout.php" aria-label="Cerrar sesión">Cerrar sesión</a>
   </div>
 </div>
 
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
