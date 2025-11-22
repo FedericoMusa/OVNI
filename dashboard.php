@@ -10,16 +10,15 @@ if (session_status() === PHP_SESSION_NONE) {
 
 /**
  * ----------------------------------------------------------------
- * Cálculo de rutas
- * Este archivo se asume bajo .../OVNI/panel/index.php
- * $BASE     = carpeta del script actual (p.ej. /OVNI/panel)
- * $APP_ROOT = raíz de la app (p.ej. /OVNI)
+ * Cálculo de rutas (MODO RAÍZ)
+ * Archivo: /OVNI/dashboard.php
  * ----------------------------------------------------------------
  */
-$scriptName = $_SERVER['SCRIPT_NAME'] ?? '/';
-$BASE = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');      // /OVNI/panel
-$APP_ROOT = rtrim(preg_replace('#/panel$#', '', $BASE), '/');          // /OVNI
-if ($APP_ROOT === '/') { $APP_ROOT = ''; } // evita doble slash en href="/..."
+// Al estar en la raíz del proyecto, la carpeta del script ES la raíz de la app.
+$ruta_actual = dirname($_SERVER['SCRIPT_NAME']); 
+$APP_ROOT    = rtrim(str_replace('\\', '/', $ruta_actual), '/');
+
+// $APP_ROOT ahora vale "/OVNI"
 
 /**
  * ----------------------------------------------------------------
@@ -31,7 +30,6 @@ if (
     !is_array($_SESSION['usuario']) ||
     empty($_SESSION['usuario']['id_usuario'])
 ) {
-    // Fallback seguro por si $APP_ROOT quedó vacío: forzamos prefijo "/"
     $loginUrl = ($APP_ROOT !== '' ? $APP_ROOT : '') . '/login.php';
     header("Location: $loginUrl", true, 302);
     exit;
@@ -40,7 +38,7 @@ if (
 $user = $_SESSION['usuario'];
 
 /**
- * Escapador seguro (si no existe)
+ * Escapador seguro
  */
 if (!function_exists('h')) {
     function h(?string $s): string {
@@ -49,16 +47,19 @@ if (!function_exists('h')) {
 }
 
 /**
- * Mensajería (flash o querystring)
+ * Mensajería
+ * CORRECCIÓN: Reemplazo de FILTER_SANITIZE_STRING por FILTER_SANITIZE_FULL_SPECIAL_CHARS
  */
 $msg = '';
 if (isset($_SESSION['flash_success'])) {
     $msg = (string)$_SESSION['flash_success'];
     unset($_SESSION['flash_success']);
 } else {
-    $updated = filter_input(INPUT_GET, 'updated', FILTER_SANITIZE_STRING) ?: '';
-    if ($updated === 'name')  { $msg = 'Nombre de la oficina actualizado correctamente.'; }
-    if ($updated === 'avatar'){ $msg = 'Avatar actualizado correctamente.'; }
+    // AQUÍ ESTÁ EL CAMBIO IMPORTANTE:
+    $updated = filter_input(INPUT_GET, 'updated', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
+    
+    if ($updated === 'name')   { $msg = 'Nombre de la oficina actualizado correctamente.'; }
+    if ($updated === 'avatar') { $msg = 'Avatar actualizado correctamente.'; }
 }
 
 /**
@@ -69,9 +70,10 @@ if ($avatarName === '') {
     $avatarName = 'noavatar.png';
 }
 
-// Ruta física al avatar para comprobar existencia
-$docRoot = rtrim(str_replace('\\','/', $_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
-$avatarFs = $docRoot . ($APP_ROOT ?: '') . '/assets/img/' . $avatarName;
+// Comprobación física
+$docRoot  = rtrim(str_replace('\\','/', $_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+$avatarFs = $docRoot . $APP_ROOT . '/assets/img/' . $avatarName;
+
 if (!is_file($avatarFs)) {
     $avatarName = 'noavatar.png';
 }
@@ -87,7 +89,7 @@ $title         = 'Dashboard — ' . $nombreOficina;
   <title><?= h($title) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="x-ua-compatible" content="IE=edge">
-  <!-- Assets SIEMPRE relativos a la raíz de la app -->
+  
   <link rel="stylesheet" href="<?= $APP_ROOT ?>/assets/css/bootstrap.min.css">
   <link rel="stylesheet" href="<?= $APP_ROOT ?>/assets/css/estilos.css">
 </head>
@@ -99,7 +101,6 @@ $title         = 'Dashboard — ' . $nombreOficina;
     <div class="alert alert-success mb-4" role="status"><?= h($msg) ?></div>
   <?php endif; ?>
 
-  <!-- Header -->
   <div class="card border-0 shadow-sm mb-4 ovni-header">
     <div class="card-body d-flex flex-column align-items-center text-center py-4">
       <img
@@ -118,7 +119,6 @@ $title         = 'Dashboard — ' . $nombreOficina;
     <div style="height:4px;background:#1e66ff;border-bottom-left-radius:16px;border-bottom-right-radius:16px;"></div>
   </div>
 
-  <!-- Grid de módulos -->
   <div class="row row-cols-1 row-cols-md-2 g-4">
 
     <div class="col">
@@ -126,7 +126,7 @@ $title         = 'Dashboard — ' . $nombreOficina;
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Configuración</h5>
           <p class="card-text flex-grow-1">Editá nombre de oficina, avatar y preferencias.</p>
-          <a class="btn btn-outline-primary mt-auto" href="<?= $APP_ROOT ?>/panel/oficina.php">Editar perfil de la oficina</a>
+          <a class="btn btn-outline-primary mt-auto" href="<?= $APP_ROOT ?>/panel/dashboard/oficina.php">Editar perfil</a>
         </div>
       </div>
     </div>
@@ -135,7 +135,7 @@ $title         = 'Dashboard — ' . $nombreOficina;
       <div class="card h-100 shadow-sm">
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Documentos / Incidentes</h5>
-          <p class="card-text flex-grow-1">Acceso rápido a gestión de documentos, incidentes y reportes.</p>
+          <p class="card-text flex-grow-1">Gestión de documentos y reportes.</p>
           <a class="btn btn-outline-secondary mt-auto" href="<?= $APP_ROOT ?>/panel/documentos.php">Entrar</a>
         </div>
       </div>
@@ -163,12 +163,11 @@ $title         = 'Dashboard — ' . $nombreOficina;
 
   </div>
 
-  <!-- Acciones -->
   <div class="d-flex gap-2 justify-content-end mt-4">
     <a class="btn btn-outline-dark" href="<?= $APP_ROOT ?>/logout.php" aria-label="Cerrar sesión">Cerrar sesión</a>
   </div>
 
-</div><!-- /.container -->
+</div>
 
 <script src="<?= $APP_ROOT ?>/assets/js/bootstrap.bundle.min.js"></script>
 </body>
