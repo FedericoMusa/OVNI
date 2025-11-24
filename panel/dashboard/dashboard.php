@@ -10,19 +10,23 @@ if (session_status() === PHP_SESSION_NONE) {
 
 /**
  * ----------------------------------------------------------------
- * Cálculo de rutas (MODO RAÍZ)
- * Archivo: /OVNI/dashboard.php
+ * CÁLCULO DE RUTAS (UBICACIÓN: /panel/dashboard/dashboard.php)
  * ----------------------------------------------------------------
  */
-// Al estar en la raíz del proyecto, la carpeta del script ES la raíz de la app.
+// 1. Directorio actual: /OVNI/panel/dashboard
 $ruta_actual = dirname($_SERVER['SCRIPT_NAME']); 
-$APP_ROOT    = rtrim(str_replace('\\', '/', $ruta_actual), '/');
 
+// 2. Raíz del proyecto: Subimos 2 niveles (/OVNI)
+//    De 'dashboard' -> 'panel' -> 'OVNI'
+$ruta_raiz = dirname(dirname($ruta_actual)); 
+
+// 3. Definimos la constante de raíz web
+$APP_ROOT = rtrim(str_replace('\\', '/', $ruta_raiz), '/');
 // $APP_ROOT ahora vale "/OVNI"
 
 /**
  * ----------------------------------------------------------------
- * Seguridad: requiere login
+ * SEGURIDAD: REQUIERE LOGIN
  * ----------------------------------------------------------------
  */
 if (
@@ -38,7 +42,7 @@ if (
 $user = $_SESSION['usuario'];
 
 /**
- * Escapador seguro
+ * Helper para escapar HTML
  */
 if (!function_exists('h')) {
     function h(?string $s): string {
@@ -47,15 +51,15 @@ if (!function_exists('h')) {
 }
 
 /**
- * Mensajería
- * CORRECCIÓN: Reemplazo de FILTER_SANITIZE_STRING por FILTER_SANITIZE_FULL_SPECIAL_CHARS
+ * MENSAJERÍA
+ * Corrección del error Deprecated: FILTER_SANITIZE_STRING -> FILTER_SANITIZE_FULL_SPECIAL_CHARS
  */
 $msg = '';
 if (isset($_SESSION['flash_success'])) {
     $msg = (string)$_SESSION['flash_success'];
     unset($_SESSION['flash_success']);
 } else {
-    // AQUÍ ESTÁ EL CAMBIO IMPORTANTE:
+    // AQUÍ ESTÁ EL ARREGLO DEL ERROR:
     $updated = filter_input(INPUT_GET, 'updated', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: '';
     
     if ($updated === 'name')   { $msg = 'Nombre de la oficina actualizado correctamente.'; }
@@ -63,14 +67,14 @@ if (isset($_SESSION['flash_success'])) {
 }
 
 /**
- * Avatar
+ * AVATAR
  */
 $avatarName = trim((string)($user['avatar_usuario'] ?? ''));
 if ($avatarName === '') {
     $avatarName = 'noavatar.png';
 }
 
-// Comprobación física
+// Comprobación física del archivo (Ruta de disco)
 $docRoot  = rtrim(str_replace('\\','/', $_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
 $avatarFs = $docRoot . $APP_ROOT . '/assets/img/' . $avatarName;
 
@@ -136,7 +140,7 @@ $title         = 'Dashboard — ' . $nombreOficina;
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Documentos / Incidentes</h5>
           <p class="card-text flex-grow-1">Gestión de documentos y reportes.</p>
-          <a class="btn btn-outline-secondary mt-auto" href="<?= $APP_ROOT ?>/panel/documentos.php">Entrar</a>
+          <a class="btn btn-outline-secondary mt-auto" href="<?= $APP_ROOT ?>/panel/dashboard/documentos.php">Entrar</a>
         </div>
       </div>
     </div>
@@ -156,7 +160,7 @@ $title         = 'Dashboard — ' . $nombreOficina;
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Usuarios y Permisos</h5>
           <p class="card-text flex-grow-1">Administrá roles y accesos.</p>
-          <a class="btn btn-outline-secondary mt-auto" href="<?= $APP_ROOT ?>/panel/usuarios.php">Entrar</a>
+          <a class="btn btn-outline-secondary mt-auto" href="<?= $APP_ROOT ?>/panel/dashboard/usuarios.php">Entrar</a>
         </div>
       </div>
     </div>
@@ -171,4 +175,4 @@ $title         = 'Dashboard — ' . $nombreOficina;
 
 <script src="<?= $APP_ROOT ?>/assets/js/bootstrap.bundle.min.js"></script>
 </body>
-</html>
+</html> 
