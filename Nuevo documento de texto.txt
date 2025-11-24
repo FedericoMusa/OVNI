@@ -1,0 +1,60 @@
+# OVNI - Oficina Virtual de Negocios Integral 🛸
+
+> **Estado del Proyecto:** MVP Monolítico (Fase 1).
+> **Próximo paso:** Migración a Arquitectura Serverless (Python/AWS).
+
+OVNI es un sistema de gestión administrativa (Dashboard) diseñado para centralizar operaciones de oficina como gestión de documentos, agenda corporativa y administración de usuarios.
+
+Este proyecto representa la **Fase 1** de mi roadmap de ingeniería: la construcción de una aplicación monolítica robusta usando PHP nativo y MySQL, con un fuerte énfasis en la seguridad y el diseño de patrones sin frameworks, para comprender a fondo el ciclo de vida de las peticiones HTTP.
+
+## 📸 Capturas de Pantalla
+
+*(Te sugiero subir aquí las imágenes del Dashboard y la Agenda que logramos hoy)*
+
+## 🚀 Características Principales
+
+### Funcionalidades de Negocio
+* **Dashboard Interactivo:** Visualización rápida de estado y accesos directos.
+* **Gestión Documental:** Subida y clasificación de contratos y presupuestos con validación estricta de tipos MIME.
+* **Agenda Corporativa:** Calendario interactivo (FullCalendar) con integración AJAX para crear, editar y eliminar eventos sin recargas.
+* **Control de Acceso (RBAC):** Sistema de roles (Admin/Usuario) donde los administradores gestionan el equipo y los usuarios tienen acceso limitado.
+* **Configuración de Perfil:** Personalización de identidad visual (Logo, Colores, Descripción) persistente en base de datos.
+
+### 🛡️ Ingeniería y Seguridad (Backend)
+El núcleo del sistema fue construido priorizando las buenas prácticas de seguridad OWASP:
+* **Protección CSRF:** Implementación de tokens anti-CSRF en todos los formularios de modificación de estado (POST).
+* **Prevención de SQL Injection:** Uso estricto de `mysqli` con sentencias preparadas (Prepared Statements) en todas las consultas.
+* **Sanitización de Salida (XSS):** Escapado de datos al renderizar HTML mediante funciones helper personalizadas.
+* **Manejo de Sesiones:** Control de inactividad y regeneración de IDs de sesión.
+* **Validación de Tipos:** Uso de `declare(strict_types=1)` en PHP 8.2+.
+
+## 🛠️ Stack Tecnológico (Fase 1)
+
+* **Backend:** PHP 8.2 (Procedural/Funcional).
+* **Base de Datos:** MySQL / MariaDB.
+* **Frontend:** HTML5, CSS3, Bootstrap 5 (Diseño Material/Clean), JavaScript (ES6).
+* **Librerías:** FullCalendar.js.
+* **Servidor:** Apache (XAMPP).
+
+## 🗺️ Roadmap: Hacia la Nube (Fase 2)
+
+El objetivo final de este proyecto es servir como base para una refactorización completa hacia una arquitectura moderna orientada a microservicios y Cloud-Native.
+
+**Plan de Migración:**
+1.  **Lenguaje:** Migración de lógica de negocio a **Python 3.11** con **FastAPI** y validación de datos con **Pydantic**.
+2.  **Infraestructura:** Despliegue Serverless usando **AWS Lambda** y **API Gateway**.
+3.  **Datos:**
+    * Usuarios y Relaciones: **AWS RDS (PostgreSQL)**.
+    * Agenda y Eventos: **AWS DynamoDB** (NoSQL) para alta velocidad de lectura.
+    * Documentos: **AWS S3** con Presigned URLs.
+4.  **Auth:** Implementación de JWT (Stateless).
+
+## 📦 Instalación Local
+
+1.  Clonar el repositorio.
+2.  Importar el archivo `database.sql` en tu servidor MySQL local.
+3.  Configurar las credenciales de base de datos en `funciones.php`.
+4.  Acceder a través de `http://localhost/OVNI/`.
+
+---
+**Autor:** [Tu Nombre]
