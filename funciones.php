@@ -261,6 +261,58 @@ function registrar_usuario(string $email, string $clave): string {
         return "Error al registrar: " . $e->getMessage();
     }
 }
+// --- AGREGAR AL FINAL DE funciones.php ---
+
+// Actualizar el color del tema de la oficina
+function actualizar_color_tema(int $id_usuario, string $nuevo_color): bool {
+    // Validar que sea un hex code válido (ej: #ff0000)
+    if (!preg_match('/^#[a-f0-9]{6}$/i', $nuevo_color)) {
+        return false;
+    }
+    $conn = conectar();
+    $sql  = "UPDATE usuarios SET color_tema = ? WHERE id_usuario = ? LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("si", $nuevo_color, $id_usuario);
+    $ok   = $stmt->execute();
+    $stmt->close();
+    $conn->close();
+    return $ok;
+}
+
+/* ==========================================================
+   GESTIÓN DE AGENDA (Para base de datos)
+   ========================================================== */
+
+// Obtener todos los eventos de un usuario
+function obtener_eventos_usuario(int $id_usuario): array {
+    $conn = conectar();
+    // Asegúrate de que la tabla 'eventos' exista con estas columnas
+    $sql = "SELECT id, title, start, end, phone, references FROM eventos WHERE id_usuario = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $id_usuario);
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+    $eventos = $resultado->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    $conn->close();
+    return $eventos;
+}
+
+// Guardar un nuevo evento para un usuario
+function guardar_evento_usuario(int $id_usuario, string $title, string $start, ?string $end, string $phone, string $references): bool {
+    $conn = conectar();
+    $sql = "INSERT INTO eventos (id_usuario, title, start, end, phone, references) VALUES (?, ?, ?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("isssss", $id_usuario, $title, $start, $end, $phone, $references);
+    $ok = $stmt->execute();
+    $stmt->close();
+    $conn->close();
+    return $ok;
+}
+
+// NOTA: Faltaría implementar `actualizar_evento_por_id` y `eliminar_evento_por_id`
+// que recibirían el ID del evento y el ID del usuario para seguridad.
+
 
 error_log("OVNI funciones.php cargado OK.");
 ?>

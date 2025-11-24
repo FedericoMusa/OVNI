@@ -1,1 +1,20 @@
-[]
+[
+    {
+        "id": 1,
+        "title": "Holis",
+        "start": "2025-11-04T15:29",
+        "end": "",
+        "phone": "2613131366",
+        "references": "",
+        "reminder": ""
+    },
+    {
+        "id": 2,
+        "title": "Prueba",
+        "start": "2025-11-30T09:00",
+        "end": "",
+        "phone": "",
+        "references": "",
+        "reminder": ""
+    }
+]

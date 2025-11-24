@@ -1,235 +1,366 @@
 <?php
+declare(strict_types=1);
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-/* ---------------------------------------------------------
-   CONFIGURACIÓN DE RUTAS (CRÍTICO PARA ESTA UBICACIÓN)
-   Archivo: /panel/dashboard/oficina.php
-   ---------------------------------------------------------
-*/
+// 1. CONFIGURACIÓN
+$ruta_actual = dirname($_SERVER['SCRIPT_NAME']); 
+$ruta_raiz   = dirname(dirname($ruta_actual)); 
+$APP_ROOT    = rtrim(str_replace('\\', '/', $ruta_raiz), '/');
 
-// 1. Calculamos la ruta web base (URL) para que el CSS/imágenes carguen bien.
-// Partimos de: /OVNI/panel/dashboard
-// Subimos 1 nivel: /OVNI/panel
-// Subimos 2 niveles: /OVNI
-$ruta_web_actual = dirname($_SERVER['SCRIPT_NAME']); 
-$ruta_web_raiz   = dirname(dirname($ruta_web_actual)); 
-$BASE = rtrim(str_replace('\\', '/', $ruta_web_raiz), '/') . '/';
-
-// 2. Incluimos funciones.php subiendo 2 carpetas físicamente en el disco.
 require_once __DIR__ . '/../../funciones.php';
 
+// 2. SEGURIDAD
+if (empty($_SESSION['usuario']['id_usuario'])) {
+    header("Location: {$APP_ROOT}/login.php", true, 302);
+    exit;
+}
 
-define('INACTIVITY_LIMIT', 300); // 5 minutos
-if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY'] > INACTIVITY_LIMIT)) {
-    session_unset();
-    session_destroy();
-    header("Location: {$BASE}login.php?expired=1");
-    exit();
-}
-$_SESSION['LAST_ACTIVITY'] = time();
+$user = $_SESSION['usuario'];
 
-
-/* ------- Parches por si faltan funciones (Backup) ------- */
-if (!function_exists('actualizar_avatar_oficina')) {
-    function actualizar_avatar_oficina(int $id_usuario, string $nombre_archivo): bool {
-        $nombre_archivo = basename($nombre_archivo);
-        if ($nombre_archivo === '') return false;
-        $conn = conectar(); // Usa la conexión de funciones.php
-        $sql  = "UPDATE usuarios SET avatar_usuario = ? WHERE id_usuario = ? LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("si", $nombre_archivo, $id_usuario);
-        $ok   = $stmt->execute();
-        $stmt->close();
-        $conn->close();
-        return $ok;
-    }
-}
-if (!function_exists('actualizar_nombre_oficina')) {
-    function actualizar_nombre_oficina(int $id_usuario, string $nuevo): bool {
-        $nuevo = trim($nuevo);
-        if ($nuevo === '' || mb_strlen($nuevo) > 100) return false;
-        $conn = conectar();
-        $sql  = "UPDATE usuarios SET nombre_oficina = ? WHERE id_usuario = ? LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("si", $nuevo, $id_usuario);
-        $ok   = $stmt->execute();
-        $stmt->close();
-        $conn->close();
-        return $ok;
-    }
-}
-if (!function_exists('obtener_usuario_por_id')) {
-    function obtener_usuario_por_id(int $id): ?array {
-        $conn = conectar();
-        $sql  = "SELECT id_usuario, email_usuario, nombre_oficina, avatar_usuario
-                 FROM usuarios WHERE id_usuario = ? LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $row = $res->fetch_assoc() ?: null;
-        $stmt->close();
-        $conn->close();
-        return $row;
-    }
-}
+// Helpers
 if (!function_exists('h')) {
     function h(?string $s): string {
         return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
-
-/* ---------------- VERIFICAR SESIÓN ---------------- */
-if (!isset($_SESSION['usuario'])) {
-    header("Location: {$BASE}login.php");
-    exit;
-}
-
-$user  = $_SESSION['usuario'];
-$flash = "";
-
 if (empty($_SESSION['csrf'])) {
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
 }
 
-/* ---------------- PROCESAR FORMULARIOS ---------------- */
+$flash = "";
 
-// CAMBIAR NOMBRE
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambiar_nombre') {
+// 3. PROCESAMIENTO
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($_SESSION['csrf'], $_POST['csrf'] ?? '')) {
-        $flash = '<div class="alert alert-danger">Sesión expirada. Recargá la página.</div>';
+        $flash = '<div class="alert alert-danger shadow-sm border-0">Error de token. Recarga.</div>';
     } else {
-        $nuevo = trim($_POST['nombre_oficina'] ?? '');
-        if (actualizar_nombre_oficina((int)$user['id_usuario'], $nuevo)) {
-            // Refrescamos datos de sesión
-            if ($u = obtener_usuario_por_id((int)$user['id_usuario'])) {
-                $_SESSION['usuario'] = $user = $u;
-            }
-            $_SESSION['flash_success'] = 'Nombre actualizado correctamente.';
-            header("Location: {$BASE}panel/dashboard/dashboard.php?updated=name");
-            exit;
-        } else {
-            $flash = '<div class="alert alert-warning">El nombre debe tener entre 1 y 100 caracteres.</div>';
-        }
-    }
-}
+        $accion = $_POST['accion'] ?? '';
 
-// CAMBIAR AVATAR
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'cambiar_avatar') {
-    if (!hash_equals($_SESSION['csrf'], $_POST['csrf'] ?? '')) {
-        $flash = '<div class="alert alert-danger">Sesión expirada. Recargá la página.</div>';
-    } elseif (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
-        $flash = '<div class="alert alert-danger">Error al subir archivo. Código: ' . $_FILES['avatar']['error'] . '</div>';
-    } else {
-        $tmp  = $_FILES['avatar']['tmp_name'];
-        $name = $_FILES['avatar']['name'];
-        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-        $permitidas = ['jpg','jpeg','png','gif','webp'];
+        // GUARDAR DATOS
+        if ($accion === 'guardar_datos') {
+            $nuevoNombre = trim($_POST['nombre_oficina'] ?? '');
+            $nuevaDesc   = trim($_POST['descripcion_oficina'] ?? '');
+            $nuevoColor  = $_POST['color_tema'] ?? '#009640';
 
-        if (!in_array($ext, $permitidas, true)) {
-            $flash = '<div class="alert alert-danger">Solo se permiten imágenes (JPG, PNG, GIF, WEBP).</div>';
-        } else {
-            // RUTA DE DESTINO: Subimos 2 niveles para llegar a OVNI/assets/img
-            $dir = __DIR__ . '/../../assets/img';
-            
-            if (!is_dir($dir)) { 
-                @mkdir($dir, 0775, true); 
-            }
-
-            $nuevoNombre = 'avatar_' . (int)$user['id_usuario'] . '.' . $ext;
-            $destino     = $dir . '/' . $nuevoNombre;
-
-            if (!move_uploaded_file($tmp, $destino)) {
-                $flash = '<div class="alert alert-danger">Error de permisos: No se pudo mover el archivo a assets/img.</div>';
+            if ($nuevoNombre === '') {
+                $flash = '<div class="alert alert-warning shadow-sm border-0">El nombre es obligatorio.</div>';
             } else {
-                @chmod($destino, 0644);
-                if (actualizar_avatar_oficina((int)$user['id_usuario'], $nuevoNombre)) {
-                    if ($u = obtener_usuario_por_id((int)$user['id_usuario'])) {
-                        $_SESSION['usuario'] = $user = $u;
+                $conn = conectar();
+                $sql = "UPDATE usuarios SET nombre_oficina = ?, descripcion_oficina = ?, color_tema = ? WHERE id_usuario = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("sssi", $nuevoNombre, $nuevaDesc, $nuevoColor, $user['id_usuario']);
+                $stmt->execute(); $stmt->close();
+                $conn->close();
+
+                $_SESSION['usuario'] = obtener_usuario_por_id((int)$user['id_usuario']);
+                $user = $_SESSION['usuario'];
+                $flash = '<div class="alert alert-success shadow-sm border-0"><i class="bi bi-check-circle-fill me-2"></i>Cambios guardados.</div>';
+            }
+        }
+
+        // SUBIR AVATAR
+        if ($accion === 'subir_avatar') {
+            if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+                $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+                    $dir = __DIR__ . '/../../assets/img';
+                    if (!is_dir($dir)) mkdir($dir, 0777, true);
+                    
+                    $newName = 'avatar_' . $user['id_usuario'] . '_' . time() . '.' . $ext;
+                    if (move_uploaded_file($_FILES['avatar']['tmp_name'], $dir . '/' . $newName)) {
+                        actualizar_avatar_oficina((int)$user['id_usuario'], $newName);
+                        $_SESSION['usuario'] = obtener_usuario_por_id((int)$user['id_usuario']);
+                        $user = $_SESSION['usuario'];
+                        $flash = '<div class="alert alert-success shadow-sm border-0"><i class="bi bi-check-circle-fill me-2"></i>Foto actualizada.</div>';
                     }
-                    $_SESSION['flash_success'] = 'Avatar actualizado.';
-                    header("Location: {$BASE}panel/dashboard/dashboard.php?updated=avatar");
-                    exit;
                 } else {
-                    $flash = '<div class="alert alert-danger">Error SQL al guardar avatar.</div>';
+                    $flash = '<div class="alert alert-warning shadow-sm border-0">Formato no válido.</div>';
                 }
             }
         }
     }
 }
+
+// Variables
+$nombreOficina = $user['nombre_oficina'] ?? 'Mi Oficina';
+$descActual    = $user['descripcion_oficina'] ?? '';
+$colorActual   = $user['color_tema'] ?? '#009640';
+$avatarUrl     = $APP_ROOT . '/assets/img/' . ($user['avatar_usuario'] ?? 'noavatar.png');
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title><?= h($user['nombre_oficina'] ?? 'Mi Oficina') ?></title>
+  <title>Configuración | <?= h($nombreOficina) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   
-  <base href="<?= h($BASE) ?>">
-  
-  <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+  <link rel="stylesheet" href="<?= $APP_ROOT ?>/assets/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
   <style>
-    .avatar-sm { width:80px; height:80px; object-fit:cover; border-radius:50%; border: 2px solid #ddd; }
+    :root {
+        --bg-body: #eaeff3;       /* Mismo gris que el dashboard */
+        --bg-hero: #2c3e50;       /* Mismo azul oscuro */
+        --card-bg: #ffffff;
+        --primary-accent: <?= $colorActual ?>;
+    }
+
+    body {
+        background-color: var(--bg-body);
+        font-family: 'Roboto', sans-serif;
+        color: #495057;
+    }
+
+    /* 1. NAVBAR EXACTA */
+    .navbar-clean {
+        background-color: #ffffff;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+        padding: 0.8rem 2rem;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .nav-logo { height: 32px; width: auto; }
+    .nav-user-img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid #dee2e6; }
+
+    /* 2. HERO OSCURO (HEADER DE PÁGINA) */
+    /* Esto es lo que faltaba: un fondo oscuro que conecte visualmente */
+    .page-header {
+        background: linear-gradient(135deg, #344767 0%, #1a2035 100%);
+        padding: 3rem 0 6rem 0; /* Padding inferior grande para solapamiento */
+        color: white;
+        margin-bottom: -4rem; /* Solapamiento negativo */
+        text-align: center;
+    }
+
+    /* 3. CONTENEDOR PRINCIPAL */
+    .main-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 20px 3rem 20px;
+        position: relative; /* Para estar encima del hero */
+        z-index: 10;
+    }
+
+    /* 4. TARJETAS IDÉNTICAS AL DASHBOARD */
+    .settings-card {
+        background: var(--card-bg);
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08); /* Misma sombra */
+        height: 100%;
+        overflow: hidden;
+        border-top: 4px solid var(--primary-accent); /* Borde de color superior */
+    }
+
+    .card-header-clean {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #f0f2f5;
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #344767;
+    }
+
+    .card-body-clean {
+        padding: 2rem;
+    }
+
+    /* 5. INPUTS MATERIAL */
+    .form-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #7b809a;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control {
+        background-color: #ffffff;
+        border: 1px solid #d2d6da;
+        border-radius: 6px;
+        padding: 0.7rem 1rem;
+        font-size: 0.9rem;
+        color: #495057;
+        transition: all 0.2s;
+    }
+    .form-control:focus {
+        border-color: var(--primary-accent);
+        box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+    }
+
+    /* Botón Principal */
+    .btn-save {
+        background-color: var(--primary-accent);
+        border: none;
+        color: white;
+        padding: 0.7rem 2rem;
+        border-radius: 6px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        transition: opacity 0.2s;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+    }
+    .btn-save:hover { opacity: 0.9; color: white; }
+
+    /* Avatar Preview */
+    .avatar-preview-box {
+        width: 140px; height: 140px;
+        position: relative;
+        margin: 0 auto 1.5rem auto;
+    }
+    .avatar-img-preview {
+        width: 100%; height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid #f0f2f5;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .btn-cam {
+        position: absolute;
+        bottom: 5px; right: 5px;
+        background: var(--primary-accent);
+        color: white;
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
   </style>
 </head>
 <body>
 
-<div class="container py-4" style="max-width:720px">
-  <?php if ($flash) { echo $flash; } ?>
-
-  <div class="d-flex align-items-center gap-3 mb-4 p-3 bg-light rounded shadow-sm">
-    <img src="assets/img/<?= h($user['avatar_usuario'] ?? 'noavatar.png') ?>" alt="Avatar" class="avatar-sm">
-    <div>
-      <h1 class="h3 mb-0">Bienvenido a <?= h($user['nombre_oficina'] ?? 'Mi Oficina') ?></h1>
-      <small class="text-muted"><?= h($user['email_usuario'] ?? '') ?></small>
-    </div>
-    <div class="ms-auto">
-      <a class="btn btn-sm btn-outline-danger" href="logout.php">Salir</a>
-    </div>
-  </div>
-
-  <div class="card mb-4 shadow-sm">
-    <div class="card-header bg-white fw-bold">Nombre de la Oficina</div>
-    <div class="card-body">
-      <form method="post" class="row g-2" action="">
-        <input type="hidden" name="accion" value="cambiar_nombre">
-        <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>">
-        <div class="col-12 col-md-9">
-          <input type="text" name="nombre_oficina" value="<?= h($user['nombre_oficina'] ?? '') ?>" maxlength="100" required class="form-control" placeholder="Ej: Oficina Central">
+    <nav class="navbar-clean">
+        <div class="d-flex align-items-center gap-3">
+            <img src="<?= $APP_ROOT ?>/assets/img/logo.png" alt="OVNI" class="nav-logo">
+            <span class="fw-bold text-dark d-none d-sm-block fs-5">OVNI Panel</span>
         </div>
-        <div class="col-12 col-md-3 d-grid">
-          <button class="btn btn-primary">Guardar</button>
+        <div class="d-flex align-items-center gap-3">
+            <img src="<?= $avatarUrl ?>" alt="User" class="nav-user-img">
+            <a href="<?= $APP_ROOT ?>/logout.php" class="btn btn-light btn-sm rounded-circle d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                <i class="bi bi-box-arrow-right text-danger"></i>
+            </a>
         </div>
-      </form>
+    </nav>
+
+    <div class="page-header">
+        <div class="container">
+            <h2 class="fw-bold mb-2">Configuración de Cuenta</h2>
+            <p class="opacity-75 small mb-0">Personaliza la identidad visual de tu oficina</p>
+            
+            <div class="mt-3">
+                <a href="dashboard.php" class="btn btn-outline-light btn-sm rounded-pill px-4 border-opacity-25">
+                    <i class="bi bi-arrow-left me-1"></i> Volver al Dashboard
+                </a>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div class="card shadow-sm">
-    <div class="card-header bg-white fw-bold">Imagen de Perfil</div>
-    <div class="card-body">
-      <form method="post" enctype="multipart/form-data" class="row g-2" action="">
-        <input type="hidden" name="accion" value="cambiar_avatar">
-        <input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>">
-        <div class="col-12 col-md-9">
-          <input type="file" name="avatar" accept="image/*" required class="form-control">
+    <div class="main-container">
+        
+        <?php if ($flash) echo $flash; ?>
+
+        <div class="row g-4">
+            
+            <div class="col-lg-8">
+                <div class="settings-card">
+                    <div class="card-header-clean">
+                        <i class="bi bi-pencil-square me-2 text-muted"></i> Información
+                    </div>
+                    <div class="card-body-clean">
+                        
+                        <form method="POST" action="">
+                            <input type="hidden" name="csrf" value="<?= $_SESSION['csrf'] ?>">
+                            <input type="hidden" name="accion" value="guardar_datos">
+                            
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <label class="form-label">Nombre Oficina</label>
+                                    <input type="text" name="nombre_oficina" class="form-control" value="<?= h($nombreOficina) ?>" required>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label">Color de Tema</label>
+                                    <div class="input-group">
+                                        <input type="color" class="form-control form-control-color" name="color_tema" value="<?= h($colorActual) ?>" title="Elige color">
+                                        <input type="text" class="form-control bg-light" value="Color de botones" disabled>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Lema / Descripción</label>
+                                    <textarea name="descripcion_oficina" class="form-control" rows="3" placeholder="Ej: Especialistas en..."><?= h($descActual) ?></textarea>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 text-end">
+                                <button type="submit" class="btn-save">
+                                    Guardar Cambios
+                                </button>
+                            </div>
+                        </form>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="settings-card">
+                    <div class="card-header-clean">
+                        <i class="bi bi-camera me-2 text-muted"></i> Imagen
+                    </div>
+                    <div class="card-body-clean text-center">
+                        
+                        <form method="POST" action="" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf" value="<?= $_SESSION['csrf'] ?>">
+                            <input type="hidden" name="accion" value="subir_avatar">
+
+                            <div class="avatar-preview-box">
+                                <img src="<?= $avatarUrl ?>" id="previewImg" class="avatar-img-preview">
+                                <label for="fileAvatar" class="btn-cam" title="Subir foto">
+                                    <i class="bi bi-cloud-upload"></i>
+                                </label>
+                            </div>
+                            
+                            <input type="file" name="avatar" id="fileAvatar" class="d-none" accept="image/*" onchange="previewFile()">
+
+                            <p class="text-muted small mb-3">JPG o PNG.<br>Se recomienda cuadrada.</p>
+
+                            <button type="submit" class="btn btn-outline-secondary btn-sm rounded-pill px-4">
+                                Confirmar Foto
+                            </button>
+                        </form>
+
+                    </div>
+                </div>
+            </div>
+
         </div>
-        <div class="col-12 col-md-3 d-grid">
-          <button class="btn btn-secondary">Subir</button>
-        </div>
-      </form>
     </div>
-  </div>
 
-  <div class="mt-4">
-    <a class="btn btn-success w-100" href="panel/dashboard/dashboard.php">Volver al Dashboard</a>
-  </div>
-</div>
-
-<script src="assets/js/bootstrap.bundle.min.js"></script>
+    <script src="<?= $APP_ROOT ?>/assets/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function previewFile() {
+            const preview = document.querySelector('#previewImg');
+            const file    = document.querySelector('#fileAvatar').files[0];
+            const reader  = new FileReader();
+            reader.onload = function(e) { preview.src = e.target.result; }
+            if (file) reader.readAsDataURL(file);
+        }
+    </script>
 </body>
 </html>
