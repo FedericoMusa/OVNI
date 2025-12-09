@@ -1,0 +1,63 @@
+# OVNI - Oficina Virtual Naturalmente Integrada 🛸
+
+> **Estado:** MVP Monolítico (Fase 1) Completado.
+> **Stack:** PHP 8.2 Nativo, MySQL, Bootstrap 5.
+> **Próximo paso:** Refactorización a Arquitectura Serverless (AWS/Python).
+
+**OVNI** es un sistema de gestión administrativa centralizado diseñado para optimizar operaciones de oficina mediante una interfaz limpia y una arquitectura segura.
+
+Este proyecto fue desarrollado como trabajo final de carrera, con el objetivo técnico de dominar los fundamentos del desarrollo backend (ciclo de vida de peticiones, seguridad, sesiones) sin depender de frameworks, antes de escalar a arquitecturas distribuidas en la nube.
+
+## 📸 Galería del Sistema
+
+| Bienvenida | Acceso Seguro |
+|:---:|:---:|
+| <img src="screenshots/Inicio.png" width="100%">**Landing Page**<br>Página de inicio pública. | <img src="screenshots/login.png" width="100%">**Login & Auth**<br>Autenticación segura. |
+
+| Panel Principal | Personalización |
+|:---:|:---:|
+| <img src="screenshots/dashboard.png" width="100%">**Dashboard**<br>Vista general con diseño "Material Clean". | <img src="screenshots/config.png" width="100%">**Configuración**<br>Ajuste de identidad visual y perfil. |
+
+| Gestión Documental | Agenda Corporativa |
+|:---:|:---:|
+| <img src="screenshots/documentos.png" width="100%">**Archivos**<br>Validación de tipos MIME y separación lógica. | <img src="screenshots/agenda.png" width="100%">**Calendario**<br>Integración FullCalendar con API AJAX propia. |
+
+| Administración |
+|:---:|
+| <img src="screenshots/usuarios.png" width="100%">**Usuarios (RBAC)**<br>Control de roles (Admin/Usuario) y accesos. |
+
+## 🚀 Características Técnicas
+
+### 🛡️ Seguridad (Core Focus)
+El sistema implementa medidas de seguridad manuales para mitigar vulnerabilidades OWASP Top 10:
+* **Anti-CSRF:** Implementación de tokens criptográficos en todos los formularios de estado.
+* **SQL Injection:** Uso estricto de `mysqli` Prepared Statements.
+* **XSS Prevention:** Sanitización de salida automática en el renderizado de vistas.
+* **Session Hijacking:** Regeneración de IDs de sesión y control de tiempos de inactividad.
+
+### ⚙️ Funcionalidades
+* **Sistema de Roles (RBAC):** Lógica de negocio diferenciada para Administradores y Usuarios estándar.
+* **Gestión de Archivos:** Subida de contratos y presupuestos con validación de extensiones en servidor.
+* **Agenda Interactiva:** CRUD de eventos vía AJAX sin recarga de página.
+* **Personalización Persistente:** El usuario puede modificar el "Look & Feel" (colores, logos) y la configuración persiste en base de datos.
+
+## 🗺️ Roadmap: Hacia la Nube (Fase 2)
+
+Actualmente estoy trabajando en la migración de este monolito hacia una arquitectura **Cloud-Native en AWS**:
+
+1.  **Backend:** Migración a **Python 3.11 (FastAPI)** con Pydantic para validación estricta.
+2.  **Compute:** Despliegue Serverless mediante **AWS Lambda** y **API Gateway**.
+3.  **Almacenamiento:**
+    * Base de Datos: **AWS RDS** (PostgreSQL) + **DynamoDB** (Para la agenda).
+    * Archivos: **AWS S3** con Presigned URLs para seguridad.
+4.  **Auth:** Implementación de **JWT** (Stateless).
+
+## 📦 Instalación Local
+
+1.  Clonar el repositorio.
+2.  Importar `database.sql` en tu servidor MySQL local (XAMPP/WAMP/Docker).
+3.  Configurar credenciales en `funciones.php`.
+4.  Acceder vía `http://localhost/OVNI/`.
+
+---
+**Desarrollado por: Federico Musa 
