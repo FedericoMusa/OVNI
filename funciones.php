@@ -74,7 +74,7 @@ function crear_usuario_nuevo($nombre, $email, $password, $rol) {
     $hash = password_hash($password, PASSWORD_DEFAULT);
     
     // Insertar (Asumimos avatar por defecto)
-    $sql = "INSERT INTO usuarios (nombre_oficina, email_usuario, password_usuario, rol, avatar_usuario, estado_usuario) VALUES (?, ?, ?, ?, 'noavatar.png', 'activo')";
+    $sql = "INSERT INTO usuarios (nombre_oficina, email_usuario, clave_usuario, rol, avatar_usuario, estado_usuario) VALUES (?, ?, ?, ?, 'noavatar.png', 'activo')";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ssss", $nombre, $email, $hash, $rol);
     
@@ -146,9 +146,9 @@ function login_usuario(string $email, string $clave): ?array {
 
     if (!$user) return null;
 
-    // Detectar si usamos password_usuario (nuevo) o clave_usuario (viejo)
-    // Tu código mezclaba ambos nombres. Aquí priorizamos password_usuario si existe, sino clave_usuario.
-    $hash = $user['password_usuario'] ?? $user['clave_usuario'] ?? '';
+    // Detectar si usamos clave_usuario (nuevo) o clave_usuario (viejo)
+    // Tu código mezclaba ambos nombres. Aquí priorizamos clave_usuario si existe, sino clave_usuario.
+    $hash = $user['clave_usuario'] ?? $user['clave_usuario'] ?? '';
     
     if (password_verify($clave, $hash)) {
         return $user;
@@ -240,9 +240,9 @@ function registrar_usuario(string $email, string $clave): string {
 
         // 2) Usuario (Por defecto rol 'usuario')
         $hash = password_hash($clave, PASSWORD_DEFAULT);
-        // NOTA: Usamos 'password_usuario' para unificar con el panel admin
+        // NOTA: Usamos 'clave_usuario' para unificar con el panel admin
         $stmt2 = $conn->prepare(
-            "INSERT INTO usuarios (email_usuario, password_usuario, avatar_usuario, estado_usuario, id_oficina, nombre_oficina, rol)
+            "INSERT INTO usuarios (email_usuario, clave_usuario, avatar_usuario, estado_usuario, id_oficina, nombre_oficina, rol)
              VALUES (?, ?, 'noavatar.png', 'activo', ?, ?, 'usuario')"
         );
         $stmt2->bind_param("ssis", $email, $hash, $id_oficina, $nombre_oficina);
